@@ -3,21 +3,121 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cover Snap</title>
+<title>Neon Vice — GTA-style cover maker</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main class="app">
-  <section class="controls">
-    <h1>Cover Snap</h1>
-    <p>A photo and a caption, made into a square cover.</p>
-    <label>Photo <input id="photo" type="file" accept="image/*"></label>
-    <label>Caption <input id="caption" type="text" maxlength="40" value="Sunset Heist"></label>
-    <button id="export" type="button">Export PNG 1080 x 1080</button>
-    <p id="status" role="status"></p>
-  </section>
-  <canvas id="cover" width="1080" height="1080" aria-label="The cover"></canvas>
-</main>
+<div id="app" class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">NV</span>
+      <span class="brand-text">
+        <strong>NEON VICE</strong>
+        <em>GTA 6-style cover maker &middot; offline, your photos never leave this machine</em>
+      </span>
+    </div>
+    <div class="top-actions">
+      <button id="exportTop" type="button" class="btn primary">Export PNG</button>
+    </div>
+  </header>
+
+  <div class="workbench">
+    <aside class="panel controls" aria-label="Cover controls">
+      <section class="group">
+        <h2>1 &middot; Photos</h2>
+        <label class="dropzone" id="dropzone">
+          <input id="upload" type="file" accept="image/*" multiple hidden>
+          <span class="drop-hint">Drop photos here or <u>browse</u></span>
+          <span class="drop-sub">JPG / PNG, kept on your device</span>
+        </label>
+        <div class="samples" id="samples">
+          <button type="button" class="thumb" data-sample="pier" title="Sample: pier at night">
+            <img src="./samples/pier.jpg" alt="Sample photo of a pier at night">
+            <span>Pier</span>
+          </button>
+          <button type="button" class="thumb" data-sample="boulevard" title="Sample: boulevard">
+            <img src="./samples/boulevard.jpg" alt="Sample photo of a boulevard">
+            <span>Boulevard</span>
+          </button>
+        </div>
+        <p class="hint" id="photoCount">2 sample photos loaded.</p>
+      </section>
+
+      <section class="group">
+        <h2>2 &middot; Layout</h2>
+        <div class="seg" id="layoutSeg" role="group" aria-label="Panel layout">
+          <button type="button" data-layout="slash3" class="on">Slash 3</button>
+          <button type="button" data-layout="hero">Hero</button>
+          <button type="button" data-layout="quad">Quad</button>
+        </div>
+        <p class="hint">Click a panel in the preview to select it, then drag it to reposition the photo.</p>
+        <div class="panel-tools">
+          <label>Panel photo
+            <select id="panelPhoto"></select>
+          </label>
+          <label>Zoom
+            <input id="panelZoom" type="range" min="1" max="3" step="0.05" value="1.15">
+          </label>
+          <div class="row">
+            <button id="panelCenter" type="button" class="btn small">Centre photo</button>
+            <button id="panelSwap" type="button" class="btn small">Swap photos</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>3 &middot; Grade</h2>
+        <div class="seg" id="gradeSeg" role="group" aria-label="Colour grade">
+          <button type="button" data-grade="neon" class="on">Neon night</button>
+          <button type="button" data-grade="sunset">Sunset</button>
+          <button type="button" data-grade="vice">Vice pink</button>
+        </div>
+        <label class="check"><input id="grain" type="checkbox" checked> Neon glow + vignette</label>
+      </section>
+
+      <section class="group">
+        <h2>4 &middot; Caption</h2>
+        <label>Title
+          <input id="title" type="text" maxlength="28" value="NEON VICE">
+        </label>
+        <label>Subtitle
+          <input id="subtitle" type="text" maxlength="48" value="VICE CITY NIGHTS">
+        </label>
+        <div class="row">
+          <label>Title spot
+            <select id="titleSpot">
+              <option value="bottom">Bottom</option>
+              <option value="top">Top</option>
+            </select>
+          </label>
+          <label>Title size
+            <input id="titleSize" type="range" min="60" max="150" step="2" value="104">
+          </label>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>5 &middot; Export size</h2>
+        <div class="seg" id="sizeSeg" role="group" aria-label="Export size">
+          <button type="button" data-size="1080x1080" class="on">1080 &times; 1080</button>
+          <button type="button" data-size="1080x1350">1080 &times; 1350</button>
+          <button type="button" data-size="1920x1080">1920 &times; 1080</button>
+        </div>
+        <button id="export" type="button" class="btn primary wide">Export PNG</button>
+        <p id="status" role="status" class="hint"></p>
+      </section>
+    </aside>
+
+    <main class="stage">
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="cover" width="1080" height="1080" aria-label="Cover preview"></canvas>
+        <p class="stage-hint" id="stageHint">Drag a panel to move its photo &middot; scroll over a panel to zoom</p>
+      </div>
+      <p class="stage-note">What you see is what the PNG gets: panels, grade, caption and all.</p>
+    </main>
+  </div>
+</div>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
