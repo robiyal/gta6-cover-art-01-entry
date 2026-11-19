@@ -39,8 +39,25 @@ function defaultPanels(layout, firstPhoto, secondPhoto) {
     { zoom: 1.55, ox: -0.12, oy: -0.04 },
     { zoom: 1.35, ox: 0.10, oy: 0.02 },
   ];
+  // Quad's bottom panels are wide and short, and both sample photos carry
+  // their faces in the upper third: the tall defaults above crop down to
+  // mouth-and-chin (or past the face entirely). Quad's lower slots use
+  // no extra zoom and a strong upward pan so the face lands in the clear
+  // strip above the caption band. The bottom row also mirrors the top
+  // (panel 2 takes the second photo, panel 3 the first): the portrait
+  // photo's face balloons in the widest panel, so it goes in the narrower
+  // bottom panel and the square photo in the wider one, keeping both
+  // bottom faces near the same on-screen size. The top slots keep the
+  // default framing.
+  const quadFraming = [
+    { zoom: 1.15, ox: 0, oy: 0 },
+    { zoom: 1.30, ox: 0.08, oy: 0.04 },
+    { zoom: 1.0, ox: 0, oy: 0.33 },
+    { zoom: 1.0, ox: 0, oy: 0.26 },
+  ];
+  const table = layout === 'quad' ? quadFraming : framing;
   for (let i = 0; i < count; i++) {
-    const f = framing[i % framing.length];
+    const f = table[i % table.length];
     slots.push({ photoId: i % 2 === 0 ? firstPhoto : secondPhoto, zoom: f.zoom, ox: f.ox, oy: f.oy });
   }
   return slots;
@@ -324,6 +341,16 @@ async function runShot(query) {
     ...p,
     photoId: second && i % 2 === 1 ? second : photo,
   }));
+  // Optional explicit per-panel assignment, e.g. panels=pier,boulevard,
+  // boulevard,pier: overrides the alternation above for the slots it names.
+  // Unknown ids are ignored, so a shot with no panels param is unchanged.
+  const explicit = query.get('panels');
+  if (explicit) {
+    const ids = explicit.split(',').map((s) => s.trim());
+    state.panels = state.panels.map((p, i) => (
+      ids[i] && state.photos[ids[i]] ? { ...p, photoId: ids[i] } : p
+    ));
+  }
   document.querySelectorAll('#gradeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.grade === grade));
   document.querySelectorAll('#layoutSeg button').forEach((b) => b.classList.toggle('on', b.dataset.layout === layout));
   document.querySelectorAll('#sizeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.size === size));

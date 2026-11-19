@@ -53,7 +53,7 @@ const jobs = [
   },
   {
     name: '4-cover-wide.jpg',
-    url: '/?shot=cover&photo=pier&photo2=boulevard&caption=MIDNIGHT%20RUN&sub=VICE%20CITY%20NIGHTS&grade=vice&layout=quad&size=1920x1080',
+    url: '/?shot=cover&photo=pier&photo2=boulevard&panels=pier,boulevard,boulevard,pier&caption=MIDNIGHT%20RUN&sub=VICE%20CITY%20NIGHTS&grade=vice&layout=quad&size=1920x1080',
     viewport: { width: 1280, height: 720 },
   },
 ];
@@ -67,7 +67,12 @@ try {
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
 
-  for (const job of jobs) {
+  // Optional filter: `node shoot.mjs 4-cover-wide.jpg` re-takes one shot.
+  const only = process.argv[2];
+  const jobsToRun = only ? jobs.filter((j) => j.name === only) : jobs;
+  if (only && !jobsToRun.length) throw new Error(`no shot named ${only}`);
+
+  for (const job of jobsToRun) {
     await page.setViewportSize(job.viewport);
     await page.goto(BASE + job.url, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.__shotReady === true, null, { timeout: 15000 });
