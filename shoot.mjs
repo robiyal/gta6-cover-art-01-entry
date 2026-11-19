@@ -38,12 +38,12 @@ function pngSize(buf) {
 const jobs = [
   {
     name: '1-cover.jpg',
-    url: '/?shot=cover&photo=pier&photo2=boulevard&caption=NEON%20VICE&sub=VICE%20CITY%20NIGHTS&grade=neon&layout=slash3&size=1080x1080',
+    url: '/?shot=cover&photo=pier&photo2=boulevard&caption=NEON%20VICE&sub=VICE%20CITY%20NIGHTS&grade=neon&layout=spotlight5&size=1080x1080&poster=1&tagline=EVERY%20NIGHT%20HAS%20A%20STORY&stars=5&labels=THE%20ANGLER%2CTHE%20DRIVER%2CTHE%20CAPTAIN%2CTHE%20RUNNER%2CTHE%20FIXER',
     viewport: { width: 1080, height: 1080 },
   },
   {
     name: '2-editor.jpg',
-    url: '/?shot=editor&photo=pier&caption=NEON%20VICE&sub=VICE%20CITY%20NIGHTS&grade=neon&layout=slash3&size=1080x1080',
+    url: '/?shot=editor&photo=pier&caption=NEON%20VICE&sub=VICE%20CITY%20NIGHTS&grade=neon&layout=spotlight5&size=1080x1080',
     viewport: { width: 1280, height: 900 },
   },
   {

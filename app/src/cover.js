@@ -5,7 +5,7 @@
 export const DISPLAY_FONT = '"Arial Black", "Helvetica Neue", Arial, sans-serif';
 export const BODY_FONT = '"Helvetica Neue", Arial, sans-serif';
 
-// Three diagonal panel layouts. Each panel is a polygon of [x, y] points.
+// Six diagonal panel layouts. Each panel is a polygon of [x, y] points.
 export const LAYOUTS = {
   slash3: [
     [[0, 0], [0.36, 0], [0.28, 1], [0, 1]],
@@ -22,6 +22,28 @@ export const LAYOUTS = {
     [[0.52, 0], [1, 0], [1, 0.55], [0.47, 0.52]],
     [[0, 0.47], [0.47, 0.52], [0.44, 1], [0, 1]],
     [[0.47, 0.52], [1, 0.55], [1, 1], [0.44, 1]],
+  ],
+  // Spotlight 5: one large centre column + four side panels. The centre
+  // panel is a tall hexagon whose edges are shared with the side panels,
+  // so the five polygons tile the canvas with no gaps.
+  spotlight5: [
+    [[0, 0], [0.36, 0], [0.34, 0.5], [0, 0.46]],
+    [[0.64, 0], [1, 0], [1, 0.46], [0.66, 0.5]],
+    [[0.36, 0], [0.64, 0], [0.66, 0.5], [0.64, 1], [0.36, 1], [0.34, 0.5]],
+    [[0, 0.46], [0.34, 0.5], [0.36, 1], [0, 1]],
+    [[0.66, 0.5], [1, 0.46], [1, 1], [0.64, 1]],
+  ],
+  // Strips: four tall vertical strips, slight slant like slash3.
+  strips: [
+    [[0, 0], [0.28, 0], [0.24, 1], [0, 1]],
+    [[0.28, 0], [0.53, 0], [0.49, 1], [0.24, 1]],
+    [[0.53, 0], [0.77, 0], [0.73, 1], [0.49, 1]],
+    [[0.77, 0], [1, 0], [1, 1], [0.73, 1]],
+  ],
+  // Duet: two big panels, one diagonal seam.
+  duet: [
+    [[0, 0], [0.56, 0], [0.44, 1], [0, 1]],
+    [[0.56, 0], [1, 0], [1, 1], [0.44, 1]],
   ],
 };
 
@@ -177,6 +199,9 @@ function drawSeams(ctx, polys, w, h, grade) {
 function drawCaption(ctx, w, h, caption) {
   const title = (caption.title || '').toUpperCase();
   const subtitle = (caption.subtitle || '').toUpperCase();
+  const tagline = (caption.tagline || '').toUpperCase();
+  const stars = Math.max(0, Math.min(5, caption.stars || 0));
+  const poster = !!caption.poster;
   if (!title && !subtitle) return;
   const size = caption.titleSize || 104;
   const spot = caption.spot || 'bottom';
@@ -185,8 +210,11 @@ function drawCaption(ctx, w, h, caption) {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // Backing band so the lettering reads at thumbnail size.
-  const bandH = base * 1.55;
+  // Backing band so the lettering reads at thumbnail size. With poster
+  // details on, the band grows to hold a star row and a tagline; with
+  // them off, the geometry is exactly the classic one (bandH 1.55x,
+  // title at 0.44, subtitle at 0.82), so old shots render unchanged.
+  const bandH = poster ? base * 2.0 : base * 1.55;
   const bandY = spot === 'top' ? h * 0.02 : h - bandH - h * 0.03;
   ctx.fillStyle = 'rgba(3, 8, 14, 0.72)';
   ctx.fillRect(0, bandY, w, bandH);
@@ -194,6 +222,13 @@ function drawCaption(ctx, w, h, caption) {
   ctx.fillStyle = grade.seam;
   ctx.fillRect(0, bandY, w, edge);
   ctx.fillRect(0, bandY + bandH - edge, w, edge);
+
+  if (poster && stars > 0) {
+    const starPx = Math.max(16, base * 0.24);
+    ctx.font = `700 ${starPx}px ${BODY_FONT}`;
+    ctx.fillStyle = '#ffb347';
+    ctx.fillText(`${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}`, w / 2, bandY + bandH * 0.12);
+  }
 
   if (title) {
     // Fit the title to the width: shrink until it fits with room to spare.
@@ -204,7 +239,7 @@ function drawCaption(ctx, w, h, caption) {
       fontPx -= 4;
       ctx.font = `900 ${fontPx}px ${DISPLAY_FONT}`;
     }
-    const ty = bandY + bandH * 0.44;
+    const ty = bandY + bandH * (poster ? 0.45 : 0.44);
     ctx.lineWidth = Math.max(4, fontPx * 0.07);
     ctx.strokeStyle = 'rgba(4, 10, 16, 0.9)';
     ctx.lineJoin = 'round';
@@ -222,9 +257,66 @@ function drawCaption(ctx, w, h, caption) {
     ctx.font = `700 ${subPx}px ${BODY_FONT}`;
     ctx.fillStyle = '#d7f6ff';
     const spaced = subtitle.split('').join(' ');
-    const sy = bandY + bandH * 0.82;
+    const sy = bandY + bandH * (poster ? 0.70 : 0.82);
     ctx.fillText(spaced, w / 2, sy);
   }
+  if (poster && tagline) {
+    const tagPx = Math.max(16, base * 0.20);
+    ctx.font = `italic 700 ${tagPx}px ${BODY_FONT}`;
+    ctx.fillStyle = '#ffd7ef';
+    const spaced = tagline.split('').join(' ');
+    ctx.fillText(spaced, w / 2, bandY + bandH * 0.89);
+  }
+  ctx.restore();
+}
+
+// Poster role labels: one small pill per panel ("THE ANGLER" style).
+// Presets rotate per panel; the editor can override (or clear) any panel's
+// label, and Surprise me rotates the preset offset.
+export const PRESET_LABELS = ['THE ANGLER', 'THE DRIVER', 'THE CAPTAIN', 'THE RUNNER', 'THE FIXER'];
+
+export function labelFor(state, i) {
+  const o = state.labelOverrides && state.labelOverrides[i];
+  if (o !== undefined) return o; // empty string hides that panel's chip
+  return PRESET_LABELS[(i + (state.labelOffset || 0)) % PRESET_LABELS.length];
+}
+
+function drawLabels(ctx, w, h, state) {
+  const polys = LAYOUTS[state.layout] || LAYOUTS.slash3;
+  const grade = GRADES[state.grade] || GRADES.neon;
+  const px = Math.max(13, Math.round(w * 0.015));
+  ctx.save();
+  ctx.font = `800 ${px}px ${BODY_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  polys.forEach((poly, i) => {
+    const label = (labelFor(state, i) || '').toUpperCase();
+    if (!label) return;
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const [x, y] of poly) {
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    const tw = ctx.measureText(label).width;
+    const padX = px * 0.9;
+    const padY = px * 0.55;
+    const chipW = tw + padX * 2;
+    const chipH = px + padY * 2;
+    const cxp = (minX + maxX) / 2 * w;
+    // Chips sit at the panel's top edge — or its bottom edge when the
+    // caption band is on top — so they never hide under the band.
+    const top = state.spot === 'top' ? maxY * h - chipH - 14 : minY * h + 14;
+    const x = Math.max(chipW / 2 + 8, Math.min(w - chipW / 2 - 8, cxp));
+    ctx.beginPath();
+    ctx.roundRect(x - chipW / 2, top, chipW, chipH, chipH / 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, w * 0.002);
+    ctx.strokeStyle = grade.seam;
+    ctx.stroke();
+    ctx.fillStyle = '#0b0f14';
+    ctx.fillText(label, x, top + chipH / 2 + 1);
+  });
   ctx.restore();
 }
 
@@ -244,11 +336,15 @@ export function drawCover(canvas, state) {
   });
   applyGrade(ctx, w, h, state.grade, state.glow);
   drawSeams(ctx, polys, w, h, state.grade);
+  if (state.poster) drawLabels(ctx, w, h, state);
   drawCaption(ctx, w, h, {
     title: state.title,
     subtitle: state.subtitle,
     titleSize: state.titleSize,
     spot: state.spot,
     grade: state.grade,
+    tagline: state.tagline,
+    stars: state.stars,
+    poster: state.poster,
   });
 }

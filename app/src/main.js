@@ -1,7 +1,7 @@
 // Neon Vice wiring: photos, panel picking, controls, export, and ?shot= scenes.
 // State lives in one plain object; every control mutates it and calls redraw().
 
-import { drawCover, panelAt, LAYOUTS } from './cover.js';
+import { drawCover, panelAt, LAYOUTS, labelFor } from './cover.js';
 
 const canvas = document.getElementById('cover');
 const statusEl = document.getElementById('status');
@@ -17,6 +17,11 @@ const state = {
   titleSize: 104,
   spot: 'bottom',
   size: '1080x1080',
+  poster: true,                     // stars + tagline + role-label chips
+  tagline: 'EVERY NIGHT HAS A STORY',
+  stars: 5,                         // 0 hides the star row
+  labelOffset: 0,                   // rotates the preset role labels
+  labelOverrides: {},               // panel index -> label text ('' hides)
   photos: {},          // id -> HTMLImageElement
   photoNames: {},      // id -> display name
   panels: [],          // one per layout slot: { photoId, zoom, ox, oy }
@@ -58,9 +63,40 @@ function defaultPanels(layout, firstPhoto, secondPhoto) {
     { zoom: 1.0, ox: 0, oy: 0.26 },
   ];
   const table = layout === 'quad' ? quadFraming : framing;
+  // Framing for the new layouts, worked out from the cover-fit math in
+  // drawPanelPhoto (both sample photos carry faces in the upper third:
+  // pier 720x720 face y 8-30%, boulevard 544x720 face y 5-30%).
+  // Spotlight 5: the tall centre column fits either photo at zoom 1.1
+  // (visible photo x 34-66% pier, 29-71% boulevard; full height, so the
+  // face's y range is always in frame). The side panels are short and
+  // wide at 1920x1080, so they get an upward pan (oy ~0.12-0.14) that
+  // keeps the face's top edge in frame on wide canvases without pushing
+  // it out on square ones (there the pan only shows more of the top).
+  const spotlightFraming = [
+    { zoom: 1.30, ox: 0.05, oy: 0.12 },
+    { zoom: 1.35, ox: -0.05, oy: 0.12 },
+    { zoom: 1.10, ox: 0, oy: 0 },
+    { zoom: 1.30, ox: 0.05, oy: 0.14 },
+    { zoom: 1.40, ox: -0.05, oy: 0.12 },
+  ];
+  // Strips: full-height narrow panels show the photo's full y range, so
+  // the upper-third faces are always in frame; only the x window moves.
+  const stripsFraming = [
+    { zoom: 1.15, ox: 0.05, oy: 0 },
+    { zoom: 1.15, ox: -0.05, oy: 0 },
+    { zoom: 1.15, ox: 0.05, oy: 0 },
+    { zoom: 1.15, ox: -0.05, oy: 0 },
+  ];
+  // Duet: two big panels; the default framing keeps the centred faces.
+  const duetFraming = [
+    { zoom: 1.15, ox: 0, oy: 0 },
+    { zoom: 1.15, ox: 0, oy: 0 },
+  ];
+  const tables = { quad: quadFraming, spotlight5: spotlightFraming, strips: stripsFraming, duet: duetFraming };
+  const tableForLayout = tables[layout] || table;
   for (let i = 0; i < count; i++) {
     const photoId = i % 2 === 0 ? firstPhoto : secondPhoto;
-    let f = table[i % table.length];
+    let f = tableForLayout[i % tableForLayout.length];
     // Quad's top-right slot is wide and short, and both sample photos
     // carry their faces in the upper third: the slot's default zoom/pan
     // crops past the face (boulevard shows hair and shirt, pier loses
@@ -143,6 +179,23 @@ function syncPanelTools() {
   if (!panel) return;
   $('panelPhoto').value = panel.photoId;
   $('panelZoom').value = String(panel.zoom);
+  $('panelLabel').value = labelFor(state, state.selected);
+}
+
+// Sync every control from state (after Surprise me, or a ?shot= scene).
+function syncAllControls() {
+  document.querySelectorAll('#layoutSeg button').forEach((b) => b.classList.toggle('on', b.dataset.layout === state.layout));
+  document.querySelectorAll('#gradeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.grade === state.grade));
+  document.querySelectorAll('#sizeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.size === state.size));
+  $('grain').checked = state.glow;
+  $('title').value = state.title;
+  $('subtitle').value = state.subtitle;
+  $('tagline').value = state.tagline;
+  $('stars').value = String(state.stars);
+  $('poster').checked = state.poster;
+  $('titleSpot').value = state.spot;
+  $('titleSize').value = String(state.titleSize);
+  syncPanelTools();
 }
 
 function markPickedSample(id) {
@@ -182,6 +235,17 @@ function wireControls() {
   $('subtitle').addEventListener('input', (e) => { state.subtitle = e.target.value; redraw(); });
   $('titleSpot').addEventListener('change', (e) => { state.spot = e.target.value; redraw(); });
   $('titleSize').addEventListener('input', (e) => { state.titleSize = Number(e.target.value); redraw(); });
+
+  // Poster details: master toggle, tagline, star rating, per-panel label.
+  $('poster').addEventListener('change', (e) => { state.poster = e.target.checked; redraw(); });
+  $('tagline').addEventListener('input', (e) => { state.tagline = e.target.value; redraw(); });
+  $('stars').addEventListener('change', (e) => { state.stars = Number(e.target.value); redraw(); });
+  $('panelLabel').addEventListener('input', (e) => {
+    state.labelOverrides[state.selected] = e.target.value;
+    redraw();
+  });
+
+  $('surprise').addEventListener('click', surpriseMe);
 
   $('panelPhoto').addEventListener('change', (e) => {
     const panel = state.panels[state.selected];
@@ -268,6 +332,31 @@ async function handleFiles(files) {
   statusEl.textContent = `${images.length} photo${images.length === 1 ? '' : 's'} added to the selected panel.`;
 }
 
+// --- Surprise me: one click randomises the whole cover --------------------
+const SURPRISE_TITLES = ['NEON VICE', 'MIDNIGHT RUN', 'BOULEVARD QUEEN', 'NIGHT SHIFT', 'PIER PRESSURE', 'VELVET THUNDER', 'SUNSET STRIP', 'VICE CITY HEAT'];
+const SURPRISE_SUBS = ['VICE CITY NIGHTS', 'AFTER DARK', 'CITY OF NEON', 'RIDERS OF THE NIGHT', 'PALMS AND NEON'];
+const SURPRISE_TAGLINES = ['EVERY NIGHT HAS A STORY', 'SOME NIGHTS NEVER END', 'THE CITY NEVER SLEEPS', 'DRIVE FAST. SHINE BRIGHT.'];
+
+function surpriseMe() {
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  setLayout(pick(Object.keys(LAYOUTS)));
+  state.grade = pick(['neon', 'sunset', 'vice']);
+  state.title = pick(SURPRISE_TITLES);
+  state.subtitle = pick(SURPRISE_SUBS);
+  state.tagline = pick(SURPRISE_TAGLINES);
+  state.stars = 4 + Math.floor(Math.random() * 2); // 4 or 5
+  state.poster = true;
+  state.labelOffset = Math.floor(Math.random() * 5);
+  state.labelOverrides = {};
+  const ids = Object.keys(state.photos);
+  if (ids.length) state.panels.forEach((p) => { p.photoId = pick(ids); });
+  state.spot = Math.random() < 0.8 ? 'bottom' : 'top';
+  state.titleSize = 92 + Math.floor(Math.random() * 5) * 8; // 92..124
+  syncAllControls();
+  redraw();
+  statusEl.textContent = `Surprise: ${state.layout} + ${state.grade} + "${state.title}".`;
+}
+
 // --- panel dragging on the canvas -------------------------------------------
 function wireCanvasDrag() {
   let dragging = null;
@@ -348,6 +437,22 @@ async function runShot(query) {
   const grade = query.get('grade') || 'neon';
   const layout = query.get('layout') || 'slash3';
   const size = query.get('size') || '1080x1080';
+  // Poster details: explicit poster=1/0 wins; otherwise they are on when
+  // the shot names any poster element (tagline/stars/labels), and on by
+  // default for editor shots — cover shots without them stay classic,
+  // so shots 3 and 4 render exactly as before.
+  const posterParam = query.get('poster');
+  const hasPosterParams = query.get('tagline') !== null || query.get('stars') !== null || query.get('labels') !== null;
+  state.poster = posterParam === '1' ? true
+    : posterParam === '0' ? false
+    : hasPosterParams ? true
+    : shot === 'editor';
+  state.tagline = query.get('tagline') || (state.poster ? 'EVERY NIGHT HAS A STORY' : '');
+  state.stars = query.get('stars') !== null ? Number(query.get('stars')) : (state.poster ? 5 : 0);
+  const labelsParam = query.get('labels');
+  if (labelsParam) {
+    labelsParam.split(',').forEach((s, i) => { state.labelOverrides[i] = s.trim().toUpperCase(); });
+  }
   state.title = caption;
   state.subtitle = sub;
   state.grade = grade;
@@ -375,6 +480,10 @@ async function runShot(query) {
   document.querySelectorAll('#sizeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.size === size));
   $('title').value = caption;
   $('subtitle').value = sub;
+  $('tagline').value = state.tagline;
+  $('stars').value = String(state.stars);
+  $('poster').checked = state.poster;
+  syncPanelTools();
   redraw();
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   window.__shotReady = true;
