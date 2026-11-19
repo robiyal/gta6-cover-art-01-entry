@@ -47,8 +47,10 @@ function defaultPanels(layout, firstPhoto, secondPhoto) {
   // (panel 2 takes the second photo, panel 3 the first): the portrait
   // photo's face balloons in the widest panel, so it goes in the narrower
   // bottom panel and the square photo in the wider one, keeping both
-  // bottom faces near the same on-screen size. The top slots keep the
-  // default framing.
+  // bottom faces near the same on-screen size. The top-left slot keeps
+  // the default framing; the top-right slot is fixed up per photo in the
+  // loop below, since it is wide and short too and the same upper-third
+  // faces fall out of its default crop.
   const quadFraming = [
     { zoom: 1.15, ox: 0, oy: 0 },
     { zoom: 1.30, ox: 0.08, oy: 0.04 },
@@ -57,8 +59,25 @@ function defaultPanels(layout, firstPhoto, secondPhoto) {
   ];
   const table = layout === 'quad' ? quadFraming : framing;
   for (let i = 0; i < count; i++) {
-    const f = table[i % table.length];
-    slots.push({ photoId: i % 2 === 0 ? firstPhoto : secondPhoto, zoom: f.zoom, ox: f.ox, oy: f.oy });
+    const photoId = i % 2 === 0 ? firstPhoto : secondPhoto;
+    let f = table[i % table.length];
+    // Quad's top-right slot is wide and short, and both sample photos
+    // carry their faces in the upper third: the slot's default zoom/pan
+    // crops past the face (boulevard shows hair and shirt, pier loses
+    // its forehead). Pan up for that slot, by exactly how much the
+    // photo's shape needs: a portrait photo needs (near) no zoom and a
+    // strong upward pan, a square one keeps its zoom and pans up less.
+    // (Worked out from the cover-fit math: boulevard 544x720 at zoom
+    // 1.02/oy 0.49 shows photo y 9-320, face at 36-216; pier 720x720
+    // at zoom 1.30/oy 0.39 shows photo y 29-352, face at 58-216.)
+    // A photo not loaded yet falls back to the table value.
+    if (layout === 'quad' && i === 1) {
+      const img = state.photos[photoId];
+      f = img && img.naturalHeight > img.naturalWidth
+        ? { zoom: 1.02, ox: 0, oy: 0.49 }
+        : { zoom: 1.30, ox: 0.08, oy: 0.39 };
+    }
+    slots.push({ photoId, zoom: f.zoom, ox: f.ox, oy: f.oy });
   }
   return slots;
 }
